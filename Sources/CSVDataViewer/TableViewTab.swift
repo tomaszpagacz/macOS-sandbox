@@ -168,9 +168,10 @@ struct DataQualityChart: View {
     private var numericQualityView: some View {
         HStack(spacing: 8) {
             if let range = viewModel.getColumnRange(for: column.name) {
-                MiniHistogramView(values: viewModel.csvData.compactMap { row in
-                    Double(row.values[column.name] ?? "")
-                }, min: range.min, max: range.max)
+                HStack(spacing: 8) {
+            MiniHistogramView(values: viewModel.csvData.compactMap { row in
+                Double(row.values[column.name] ?? "")
+            }, minValue: range.min, maxValue: range.max)
                 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(String(format: "%.1f - %.1f", range.min, range.max))
@@ -208,15 +209,15 @@ struct DataQualityChart: View {
 // Mini histogram for numeric columns
 struct MiniHistogramView: View {
     let values: [Double]
-    let min: Double
-    let max: Double
+    let minValue: Double
+    let maxValue: Double
     
     private var bins: [Int] {
         let binCount = 10
         var bins = Array(repeating: 0, count: binCount)
         
         for value in values {
-            let binIndex = min(Int((value - min) / (max - min) * Double(binCount)), binCount - 1)
+            let binIndex = Swift.min(Int((value - minValue) / (maxValue - minValue) * Double(binCount)), binCount - 1)
             bins[binIndex] += 1
         }
         
