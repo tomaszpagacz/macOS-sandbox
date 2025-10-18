@@ -30,14 +30,12 @@ struct ChartsViewTab: View {
                         .font(.system(size: 18, weight: .bold, design: .rounded))
                         .foregroundColor(.white)
                     
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 16) {
-                            ForEach(viewModel.columns) { column in
-                                AnalyticsFilterView(viewModel: viewModel, column: column)
-                            }
+                    HStack(spacing: 16) {
+                        ForEach(viewModel.columns) { column in
+                            AnalyticsFilterView(viewModel: viewModel, column: column)
                         }
-                        .padding(.horizontal)
                     }
+                    .padding(.horizontal)
                 }
                 .padding(.horizontal)
                 
@@ -370,33 +368,21 @@ struct AnalyticsFilterView: View {
                         .stroke(.white.opacity(0.2), lineWidth: 1)
                 )
         )
-        .frame(width: 200)
+        .frame(width: 180)
     }
     
     private var numericFilterView: some View {
         VStack(spacing: 6) {
             HStack(spacing: 8) {
                 TextField("Min", text: $minValue)
-                    .textFieldStyle(.plain)
+                    .textFieldStyle(.roundedBorder)
                     .font(.system(size: 11, design: .monospaced))
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 4)
-                    .background(
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(.black.opacity(0.3))
-                    )
+                    .foregroundColor(.black)
                 
                 TextField("Max", text: $maxValue)
-                    .textFieldStyle(.plain)
+                    .textFieldStyle(.roundedBorder)
                     .font(.system(size: 11, design: .monospaced))
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 4)
-                    .background(
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(.black.opacity(0.3))
-                    )
+                    .foregroundColor(.black)
             }
             
             Button("Apply Range") {
@@ -418,23 +404,17 @@ struct AnalyticsFilterView: View {
     
     private var stringFilterView: some View {
         VStack(spacing: 6) {
-            ZStack(alignment: .topLeading) {
-                TextField("Filter text...", text: $textFilter)
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 11, design: .rounded))
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 4)
-                    .background(
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(.black.opacity(0.3))
-                    )
-                    .onChange(of: textFilter) { oldValue, newValue in
-                        updateSuggestions(for: newValue)
-                        viewModel.setAnalyticsFilter(for: column.name, filter: .text(newValue))
-                    }
-                
-                if showSuggestions && !suggestions.isEmpty {
+            TextField("Filter text...", text: $textFilter)
+                .textFieldStyle(.roundedBorder)
+                .font(.system(size: 11, design: .rounded))
+                .foregroundColor(.black)
+                .onChange(of: textFilter) { oldValue, newValue in
+                    updateSuggestions(for: newValue)
+                    viewModel.setAnalyticsFilter(for: column.name, filter: .text(newValue))
+                }
+            
+            if showSuggestions && !suggestions.isEmpty {
+                ScrollView {
                     VStack(spacing: 0) {
                         ForEach(suggestions, id: \.self) { suggestion in
                             Button(action: {
@@ -452,13 +432,12 @@ struct AnalyticsFilterView: View {
                             .buttonStyle(.plain)
                         }
                     }
-                    .background(
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(.black.opacity(0.5))
-                    )
-                    .offset(y: 30)
-                    .zIndex(1)
                 }
+                .frame(height: 100)
+                .background(
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(.black.opacity(0.5))
+                )
             }
         }
         .onTapGesture {
