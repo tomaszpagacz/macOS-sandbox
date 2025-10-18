@@ -429,7 +429,7 @@ struct AnalyticsFilterView: View {
                         RoundedRectangle(cornerRadius: 4)
                             .fill(.black.opacity(0.3))
                     )
-                    .onChange(of: textFilter) { newValue in
+                    .onChange(of: textFilter) { oldValue, newValue in
                         updateSuggestions(for: newValue)
                         viewModel.setAnalyticsFilter(for: column.name, filter: .text(newValue))
                     }

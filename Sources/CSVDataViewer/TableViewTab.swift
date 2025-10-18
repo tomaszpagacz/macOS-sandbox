@@ -216,7 +216,7 @@ struct MiniHistogramView: View {
         var bins = Array(repeating: 0, count: binCount)
         
         for value in values {
-            let binIndex = Swift.min(Int((value - minValue) / (maxValue - minValue) * Double(binCount)), binCount - 1)
+            let binIndex = min(Int((value - minValue) / (maxValue - minValue) * Double(binCount)), binCount - 1)
             bins[binIndex] += 1
         }
         
