@@ -37,15 +37,9 @@ struct TableViewTab: View {
                             }
                             .buttonStyle(.plain)
                             
-                            // Filter field
-                            FilterTextField(
-                                placeholder: "Filter...",
-                                text: Binding(
-                                    get: { viewModel.columnFilters[column.name] ?? "" },
-                                    set: { viewModel.setFilter(for: column.name, text: $0) }
-                                )
-                            )
-                            .frame(width: 180)
+                            // Data quality chart
+                            DataQualityChart(viewModel: viewModel, column: column)
+                                .frame(width: 180)
                         }
                         .padding(8)
                         .background(
@@ -65,7 +59,7 @@ struct TableViewTab: View {
             // Data rows
             ScrollView([.horizontal, .vertical]) {
                 VStack(spacing: 0) {
-                    ForEach(Array(viewModel.filteredData.enumerated()), id: \.element.id) { index, row in
+                    ForEach(Array(viewModel.sortedCsvData.enumerated()), id: \.element.id) { index, row in
                         HStack(spacing: 0) {
                             ForEach(viewModel.columns) { column in
                                 Text(row.values[column.name] ?? "")
@@ -141,9 +135,107 @@ struct FilterTextField: View {
                 .opacity(0.3)
                 .overlay(
                     RoundedRectangle(cornerRadius: 6)
+                .stroke(.white.opacity(0.2), lineWidth: 1)
+            )
+        )
+    }
+}
+
+// Data quality chart for table columns
+struct DataQualityChart: View {
+    let viewModel: CSVDataViewModel
+    let column: ColumnInfo
+    
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 6)
+                .fill(.ultraThinMaterial)
+                .opacity(0.3)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6)
                         .stroke(.white.opacity(0.2), lineWidth: 1)
                 )
-        )
+            
+            if column.isNumeric {
+                numericQualityView
+            } else {
+                stringQualityView
+            }
+        }
+        .frame(height: 40)
+    }
+    
+    private var numericQualityView: some View {
+        HStack(spacing: 8) {
+            if let range = viewModel.getColumnRange(for: column.name) {
+                MiniHistogramView(values: viewModel.csvData.compactMap { row in
+                    Double(row.values[column.name] ?? "")
+                }, min: range.min, max: range.max)
+                
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(String(format: "%.1f - %.1f", range.min, range.max))
+                        .font(.system(size: 9, design: .monospaced))
+                        .foregroundColor(.cyan)
+                    Text("\(viewModel.csvData.count) values")
+                        .font(.system(size: 8, design: .rounded))
+                        .foregroundColor(.white.opacity(0.6))
+                }
+            }
+        }
+        .padding(.horizontal, 8)
+    }
+    
+    private var stringQualityView: some View {
+        HStack(spacing: 8) {
+            if let info = viewModel.getStringColumnInfo(for: column.name) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("\(info.uniqueCount) unique")
+                        .font(.system(size: 9, design: .rounded))
+                        .foregroundColor(.cyan)
+                    if let top = info.topValues.first {
+                        Text("Top: \(top.value)")
+                            .font(.system(size: 8, design: .rounded))
+                            .foregroundColor(.white.opacity(0.6))
+                            .lineLimit(1)
+                    }
+                }
+            }
+        }
+        .padding(.horizontal, 8)
+    }
+}
+
+// Mini histogram for numeric columns
+struct MiniHistogramView: View {
+    let values: [Double]
+    let min: Double
+    let max: Double
+    
+    private var bins: [Int] {
+        let binCount = 10
+        var bins = Array(repeating: 0, count: binCount)
+        
+        for value in values {
+            let binIndex = min(Int((value - min) / (max - min) * Double(binCount)), binCount - 1)
+            bins[binIndex] += 1
+        }
+        
+        return bins
+    }
+    
+    private var maxBin: Int {
+        bins.max() ?? 1
+    }
+    
+    var body: some View {
+        HStack(spacing: 1) {
+            ForEach(bins.indices, id: \.self) { index in
+                Rectangle()
+                    .fill(.cyan.opacity(0.6))
+                    .frame(width: 3, height: CGFloat(bins[index]) / CGFloat(maxBin) * 30)
+                    .frame(maxHeight: 30, alignment: .bottom)
+            }
+        }
     }
 }
 

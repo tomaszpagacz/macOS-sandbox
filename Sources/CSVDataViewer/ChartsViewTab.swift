@@ -24,6 +24,23 @@ struct ChartsViewTab: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .padding()
             } else {
+                // Filters section
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("Filters")
+                        .font(.system(size: 18, weight: .bold, design: .rounded))
+                        .foregroundColor(.white)
+                    
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 16) {
+                            ForEach(viewModel.columns) { column in
+                                AnalyticsFilterView(viewModel: viewModel, column: column)
+                            }
+                        }
+                        .padding(.horizontal)
+                    }
+                }
+                .padding(.horizontal)
+                
                 LazyVGrid(columns: [
                     GridItem(.flexible(), spacing: 20),
                     GridItem(.flexible(), spacing: 20)
@@ -162,13 +179,13 @@ struct StatBox: View {
 struct BarChartView: View {
     let stats: ColumnStats
     
-    private var chartData: [(bin: Double, count: Int)] {
+    private var chartData: [(id: Int, bin: String, count: Int)] {
         let binCount = min(20, stats.values.count)
         let range = stats.max - stats.min
         
         // Handle case where all values are the same
         if range == 0 {
-            return [(bin: stats.min, count: stats.values.count)]
+            return [(id: 0, bin: String(format: "%.2f", stats.min), count: stats.values.count)]
         }
         
         let binSize = range / Double(binCount)
@@ -182,12 +199,12 @@ struct BarChartView: View {
         
         return bins.enumerated().map { index, count in
             let binStart = stats.min + Double(index) * binSize
-            return (bin: binStart, count: count)
+            return (id: index, bin: String(format: "%.2f", binStart), count: count)
         }
     }
     
     var body: some View {
-        Chart(chartData, id: \.bin) { item in
+        Chart(chartData, id: \.id) { item in
             BarMark(
                 x: .value("Bin", item.bin),
                 y: .value("Count", item.count)
@@ -201,10 +218,12 @@ struct BarChartView: View {
             )
         }
         .chartXAxis {
-            AxisMarks(preset: .aligned, values: .stride(by: 4)) { _ in
+            AxisMarks { _ in
                 AxisValueLabel()
                     .foregroundStyle(.white.opacity(0.6))
                     .font(.system(size: 9, design: .monospaced))
+                AxisGridLine()
+                    .foregroundStyle(.white.opacity(0.1))
             }
         }
         .chartYAxis {
@@ -316,4 +335,141 @@ struct AreaChartView: View {
 #Preview {
     let viewModel = CSVDataViewModel()
     return ChartsViewTab(viewModel: viewModel)
+}
+
+// Analytics filter view for each column
+struct AnalyticsFilterView: View {
+    @ObservedObject var viewModel: CSVDataViewModel
+    let column: ColumnInfo
+    
+    @State private var textFilter = ""
+    @State private var minValue = ""
+    @State private var maxValue = ""
+    @State private var showSuggestions = false
+    @State private var suggestions: [String] = []
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(column.name)
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .foregroundColor(.white)
+            
+            if column.isNumeric {
+                numericFilterView
+            } else {
+                stringFilterView
+            }
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(.ultraThinMaterial)
+                .opacity(0.3)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(.white.opacity(0.2), lineWidth: 1)
+                )
+        )
+        .frame(width: 200)
+    }
+    
+    private var numericFilterView: some View {
+        VStack(spacing: 6) {
+            HStack(spacing: 8) {
+                TextField("Min", text: $minValue)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 4)
+                    .background(
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(.black.opacity(0.3))
+                    )
+                
+                TextField("Max", text: $maxValue)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 4)
+                    .background(
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(.black.opacity(0.3))
+                    )
+            }
+            
+            Button("Apply Range") {
+                let min = Double(minValue.trimmingCharacters(in: .whitespaces))
+                let max = Double(maxValue.trimmingCharacters(in: .whitespaces))
+                viewModel.setAnalyticsFilter(for: column.name, filter: .range(min: min, max: max))
+            }
+            .font(.system(size: 10, weight: .semibold))
+            .foregroundColor(.cyan)
+            .buttonStyle(.plain)
+        }
+        .onAppear {
+            if let range = viewModel.getColumnRange(for: column.name) {
+                minValue = String(format: "%.2f", range.min)
+                maxValue = String(format: "%.2f", range.max)
+            }
+        }
+    }
+    
+    private var stringFilterView: some View {
+        VStack(spacing: 6) {
+            ZStack(alignment: .topLeading) {
+                TextField("Filter text...", text: $textFilter)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 11, design: .rounded))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 4)
+                    .background(
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(.black.opacity(0.3))
+                    )
+                    .onChange(of: textFilter) { newValue in
+                        updateSuggestions(for: newValue)
+                        viewModel.setAnalyticsFilter(for: column.name, filter: .text(newValue))
+                    }
+                
+                if showSuggestions && !suggestions.isEmpty {
+                    VStack(spacing: 0) {
+                        ForEach(suggestions, id: \.self) { suggestion in
+                            Button(action: {
+                                textFilter = suggestion
+                                showSuggestions = false
+                                viewModel.setAnalyticsFilter(for: column.name, filter: .text(suggestion))
+                            }) {
+                                Text(suggestion)
+                                    .font(.system(size: 10, design: .rounded))
+                                    .foregroundColor(.white)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 4)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .background(
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(.black.opacity(0.5))
+                    )
+                    .offset(y: 30)
+                    .zIndex(1)
+                }
+            }
+        }
+        .onTapGesture {
+            if !textFilter.isEmpty {
+                showSuggestions = true
+            }
+        }
+    }
+    
+    private func updateSuggestions(for prefix: String) {
+        suggestions = viewModel.getStringFilterSuggestions(for: column.name, prefix: prefix)
+        showSuggestions = !suggestions.isEmpty
+    }
 }

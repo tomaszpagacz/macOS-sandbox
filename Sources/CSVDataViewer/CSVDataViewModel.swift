@@ -14,12 +14,19 @@ struct ColumnInfo: Identifiable {
     let isNumeric: Bool
 }
 
+// Filter types for analytics
+enum AnalyticsFilter {
+    case text(String)
+    case range(min: Double?, max: Double?)
+}
+
 // CSV Data View Model
 @MainActor
 class CSVDataViewModel: ObservableObject {
     @Published var csvData: [CSVRow] = []
     @Published var columns: [ColumnInfo] = []
-    @Published var columnFilters: [String: String] = [:]
+    @Published var columnFilters: [String: String] = [:] // For table filtering
+    @Published var analyticsFilters: [String: AnalyticsFilter] = [:] // For analytics filtering
     @Published var sortColumn: String?
     @Published var sortAscending = true
     
@@ -57,6 +64,53 @@ class CSVDataViewModel: ObservableObject {
     
     var numericColumns: [ColumnInfo] {
         columns.filter { $0.isNumeric }
+    }
+    
+    var analyticsFilteredData: [CSVRow] {
+        var result = csvData
+        
+        // Apply analytics filters
+        for (column, filter) in analyticsFilters {
+            result = result.filter { row in
+                guard let value = row.values[column] else { return false }
+                
+                switch filter {
+                case .text(let text):
+                    return text.isEmpty || value.localizedCaseInsensitiveContains(text)
+                case .range(let min, let max):
+                    guard let numValue = Double(value.trimmingCharacters(in: .whitespaces)) else { return false }
+                    if let min = min, numValue < min { return false }
+                    if let max = max, numValue > max { return false }
+                    return true
+                }
+            }
+        }
+        
+        return result
+    }
+    
+    var sortedCsvData: [CSVRow] {
+        var result = csvData
+        
+        // Apply sorting
+        if let sortColumn = sortColumn {
+            result.sort { row1, row2 in
+                guard let val1 = row1.values[sortColumn],
+                      let val2 = row2.values[sortColumn] else {
+                    return false
+                }
+                
+                // Check if both values are numeric
+                if let num1 = Double(val1), let num2 = Double(val2) {
+                    return sortAscending ? num1 < num2 : num1 > num2
+                }
+                
+                // String comparison
+                return sortAscending ? val1 < val2 : val1 > val2
+            }
+        }
+        
+        return result
     }
     
     func importCSV() {
@@ -108,6 +162,7 @@ class CSVDataViewModel: ObservableObject {
             self.columns = columnInfos
             self.csvData = rows
             self.columnFilters = [:]
+            self.analyticsFilters = [:]
             self.sortColumn = nil
         } catch {
             print("Error reading CSV: \(error)")
@@ -134,8 +189,42 @@ class CSVDataViewModel: ObservableObject {
         return result
     }
     
-    func setFilter(for column: String, text: String) {
-        columnFilters[column] = text
+    func setAnalyticsFilter(for column: String, filter: AnalyticsFilter) {
+        analyticsFilters[column] = filter
+    }
+    
+    func getStringFilterSuggestions(for column: String, prefix: String) -> [String] {
+        let uniqueValues = Set(csvData.compactMap { $0.values[column] })
+        return uniqueValues
+            .filter { $0.localizedCaseInsensitiveContains(prefix) }
+            .sorted()
+            .prefix(10)
+            .map { $0 }
+    }
+    
+    func getColumnRange(for column: String) -> (min: Double, max: Double)? {
+        guard let columnInfo = columns.first(where: { $0.name == column }),
+              columnInfo.isNumeric else { return nil }
+        
+        let values = csvData.compactMap { row -> Double? in
+            guard let valueStr = row.values[column] else { return nil }
+            return Double(valueStr.trimmingCharacters(in: .whitespaces))
+        }
+        
+        guard let min = values.min(), let max = values.max() else { return nil }
+        return (min, max)
+    }
+    
+    func getStringColumnInfo(for column: String) -> (uniqueCount: Int, topValues: [(value: String, count: Int)])? {
+        guard let columnInfo = columns.first(where: { $0.name == column }),
+              !columnInfo.isNumeric else { return nil }
+        
+        let values = csvData.compactMap { $0.values[column] }
+        let valueCounts = Dictionary(values.map { ($0, 1) }, uniquingKeysWith: +)
+        let sorted = valueCounts.sorted { $0.value > $1.value }
+        let topValues = sorted.prefix(5).map { (value: $0.key, count: $0.value) }
+        
+        return (uniqueCount: valueCounts.count, topValues: topValues)
     }
     
     func toggleSort(for column: String) {
@@ -153,7 +242,7 @@ class CSVDataViewModel: ObservableObject {
             return nil
         }
         
-        let values = csvData.compactMap { row -> Double? in
+        let values = analyticsFilteredData.compactMap { row -> Double? in
             guard let valueStr = row.values[columnName] else { return nil }
             return Double(valueStr.trimmingCharacters(in: .whitespaces))
         }
