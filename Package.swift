@@ -21,7 +21,10 @@ let package = Package(
         .executableTarget(
             name: "CSVDataViewer",
             dependencies: [],
-            path: "Sources/CSVDataViewer"
+            path: "Sources/CSVDataViewer",
+            resources: [
+                .process("Info.plist")
+            ]
         ),
         .testTarget(
             name: "CSVDataViewerTests",

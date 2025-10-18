@@ -162,9 +162,15 @@ struct StatBox: View {
 struct BarChartView: View {
     let stats: ColumnStats
     
-    private var chartData: [(bin: String, count: Int)] {
+    private var chartData: [(bin: Double, count: Int)] {
         let binCount = min(20, stats.values.count)
         let range = stats.max - stats.min
+        
+        // Handle case where all values are the same
+        if range == 0 {
+            return [(bin: stats.min, count: stats.values.count)]
+        }
+        
         let binSize = range / Double(binCount)
         
         var bins: [Int] = Array(repeating: 0, count: binCount)
@@ -176,7 +182,7 @@ struct BarChartView: View {
         
         return bins.enumerated().map { index, count in
             let binStart = stats.min + Double(index) * binSize
-            return (bin: String(format: "%.1f", binStart), count: count)
+            return (bin: binStart, count: count)
         }
     }
     
