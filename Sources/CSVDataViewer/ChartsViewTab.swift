@@ -26,9 +26,28 @@ struct ChartsViewTab: View {
             } else {
                 // Filters section
                 VStack(alignment: .leading, spacing: 16) {
-                    Text("Filters")
-                        .font(.system(size: 18, weight: .bold, design: .rounded))
-                        .foregroundColor(.white)
+                    HStack {
+                        Text("Filters")
+                            .font(.system(size: 18, weight: .bold, design: .rounded))
+                            .foregroundColor(.white)
+                        
+                        if !viewModel.analyticsFilters.isEmpty {
+                            Text("(\(viewModel.analyticsFilters.count) active)")
+                                .font(.system(size: 12, design: .rounded))
+                                .foregroundColor(.cyan)
+                            
+                            Button("Clear All") {
+                                viewModel.analyticsFilters.removeAll()
+                            }
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color.red.opacity(0.6))
+                            .cornerRadius(4)
+                            .buttonStyle(.plain)
+                        }
+                    }
                     
                     HStack(spacing: 16) {
                         ForEach(viewModel.columns) { column in
@@ -45,8 +64,8 @@ struct ChartsViewTab: View {
                 ], spacing: 20) {
                     ForEach(viewModel.numericColumns) { column in
                         ChartCard(
-                            columnName: column.name,
-                            stats: viewModel.getColumnStats(for: column.name)
+                            viewModel: viewModel,
+                            columnName: column.name
                         )
                     }
                 }
@@ -57,9 +76,13 @@ struct ChartsViewTab: View {
 }
 
 struct ChartCard: View {
+    @ObservedObject var viewModel: CSVDataViewModel
     let columnName: String
-    let stats: ColumnStats?
     @State private var chartType: ChartType = .bar
+    
+    private var stats: ColumnStats? {
+        viewModel.getColumnStats(for: columnName)
+    }
     
     enum ChartType: String, CaseIterable {
         case bar = "Bar"
@@ -377,41 +400,74 @@ struct AnalyticsFilterView: View {
                 TextField("Min", text: $minValue)
                     .textFieldStyle(.roundedBorder)
                     .font(.system(size: 11, design: .monospaced))
-                    .foregroundColor(.black)
                 
                 TextField("Max", text: $maxValue)
                     .textFieldStyle(.roundedBorder)
                     .font(.system(size: 11, design: .monospaced))
-                    .foregroundColor(.black)
             }
             
-            Button("Apply Range") {
-                let min = Double(minValue.trimmingCharacters(in: .whitespaces))
-                let max = Double(maxValue.trimmingCharacters(in: .whitespaces))
-                viewModel.setAnalyticsFilter(for: column.name, filter: .range(min: min, max: max))
+            HStack(spacing: 8) {
+                Button("Apply") {
+                    let min = Double(minValue.trimmingCharacters(in: .whitespaces))
+                    let max = Double(maxValue.trimmingCharacters(in: .whitespaces))
+                    viewModel.setAnalyticsFilter(for: column.name, filter: .range(min: min, max: max))
+                }
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundColor(.white)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color.cyan.opacity(0.6))
+                .cornerRadius(4)
+                .buttonStyle(.plain)
+                
+                Button("Clear") {
+                    if let range = viewModel.getColumnRange(for: column.name) {
+                        minValue = String(format: "%.2f", range.min)
+                        maxValue = String(format: "%.2f", range.max)
+                    }
+                    viewModel.setAnalyticsFilter(for: column.name, filter: .range(min: nil, max: nil))
+                }
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundColor(.white)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color.red.opacity(0.6))
+                .cornerRadius(4)
+                .buttonStyle(.plain)
             }
-            .font(.system(size: 10, weight: .semibold))
-            .foregroundColor(.cyan)
-            .buttonStyle(.plain)
         }
         .onAppear {
-            if let range = viewModel.getColumnRange(for: column.name) {
-                minValue = String(format: "%.2f", range.min)
-                maxValue = String(format: "%.2f", range.max)
+            if minValue.isEmpty && maxValue.isEmpty {
+                if let range = viewModel.getColumnRange(for: column.name) {
+                    minValue = String(format: "%.2f", range.min)
+                    maxValue = String(format: "%.2f", range.max)
+                }
             }
         }
     }
     
     private var stringFilterView: some View {
         VStack(spacing: 6) {
-            TextField("Filter text...", text: $textFilter)
-                .textFieldStyle(.roundedBorder)
-                .font(.system(size: 11, design: .rounded))
-                .foregroundColor(.black)
-                .onChange(of: textFilter) { oldValue, newValue in
-                    updateSuggestions(for: newValue)
-                    viewModel.setAnalyticsFilter(for: column.name, filter: .text(newValue))
+            HStack(spacing: 4) {
+                TextField("Filter text...", text: $textFilter)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 11, design: .rounded))
+                    .onChange(of: textFilter) { oldValue, newValue in
+                        updateSuggestions(for: newValue)
+                        viewModel.setAnalyticsFilter(for: column.name, filter: .text(newValue))
+                    }
+                
+                if !textFilter.isEmpty {
+                    Button(action: {
+                        textFilter = ""
+                        viewModel.setAnalyticsFilter(for: column.name, filter: .text(""))
+                    }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundColor(.gray)
+                    }
+                    .buttonStyle(.plain)
                 }
+            }
             
             if showSuggestions && !suggestions.isEmpty {
                 ScrollView {
@@ -430,19 +486,19 @@ struct AnalyticsFilterView: View {
                                     .padding(.vertical, 4)
                             }
                             .buttonStyle(.plain)
+                            .background(Color.black.opacity(0.2))
                         }
                     }
                 }
                 .frame(height: 100)
                 .background(
                     RoundedRectangle(cornerRadius: 4)
-                        .fill(.black.opacity(0.5))
+                        .fill(.black.opacity(0.7))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 4)
+                                .stroke(.white.opacity(0.3), lineWidth: 1)
+                        )
                 )
-            }
-        }
-        .onTapGesture {
-            if !textFilter.isEmpty {
-                showSuggestions = true
             }
         }
     }
