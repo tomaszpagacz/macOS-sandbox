@@ -69,6 +69,8 @@ class CSVDataViewModel: ObservableObject {
     var analyticsFilteredData: [CSVRow] {
         var result = csvData
         
+        print("analyticsFilteredData: Starting with \(result.count) rows, \(analyticsFilters.count) filters")
+        
         // Apply analytics filters
         for (column, filter) in analyticsFilters {
             result = result.filter { row in
@@ -84,8 +86,10 @@ class CSVDataViewModel: ObservableObject {
                     return true
                 }
             }
+            print("After filtering \(column): \(result.count) rows remaining")
         }
         
+        print("analyticsFilteredData: Final count = \(result.count)")
         return result
     }
     
@@ -190,7 +194,24 @@ class CSVDataViewModel: ObservableObject {
     }
     
     func setAnalyticsFilter(for column: String, filter: AnalyticsFilter) {
-        analyticsFilters[column] = filter
+        // Remove empty filters
+        switch filter {
+        case .text(let text) where text.isEmpty:
+            analyticsFilters.removeValue(forKey: column)
+        case .range(let min, let max) where min == nil && max == nil:
+            analyticsFilters.removeValue(forKey: column)
+        default:
+            analyticsFilters[column] = filter
+        }
+        objectWillChange.send() // Force update
+        print("Filter set for \(column): \(filter)")
+        print("Total active filters: \(analyticsFilters.count)")
+    }
+    
+    func clearAllAnalyticsFilters() {
+        analyticsFilters.removeAll()
+        objectWillChange.send()
+        print("All filters cleared")
     }
     
     func getStringFilterSuggestions(for column: String, prefix: String) -> [String] {

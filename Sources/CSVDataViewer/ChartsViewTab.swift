@@ -37,7 +37,7 @@ struct ChartsViewTab: View {
                                 .foregroundColor(.cyan)
                             
                             Button("Clear All") {
-                                viewModel.analyticsFilters.removeAll()
+                                viewModel.clearAllAnalyticsFilters()
                             }
                             .font(.system(size: 10, weight: .semibold))
                             .foregroundColor(.white)
@@ -81,7 +81,9 @@ struct ChartCard: View {
     @State private var chartType: ChartType = .bar
     
     private var stats: ColumnStats? {
-        viewModel.getColumnStats(for: columnName)
+        let result = viewModel.getColumnStats(for: columnName)
+        print("ChartCard(\(columnName)): Recalculating stats - count: \(result?.count ?? 0)")
+        return result
     }
     
     enum ChartType: String, CaseIterable {
@@ -100,9 +102,17 @@ struct ChartCard: View {
                         .foregroundColor(.white)
                     
                     if let stats = stats {
-                        Text("n=\(stats.count)")
-                            .font(.system(size: 10, weight: .medium, design: .monospaced))
-                            .foregroundColor(.cyan)
+                        HStack(spacing: 8) {
+                            Text("n=\(stats.count)")
+                                .font(.system(size: 10, weight: .medium, design: .monospaced))
+                                .foregroundColor(.cyan)
+                            
+                            if viewModel.analyticsFilters.isEmpty == false {
+                                Text("(filtered)")
+                                    .font(.system(size: 9, design: .rounded))
+                                    .foregroundColor(.orange)
+                            }
+                        }
                     }
                 }
                 
