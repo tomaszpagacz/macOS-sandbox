@@ -168,10 +168,9 @@ struct DataQualityChart: View {
     private var numericQualityView: some View {
         HStack(spacing: 8) {
             if let range = viewModel.getColumnRange(for: column.name) {
-                HStack(spacing: 8) {
-            MiniHistogramView(values: viewModel.csvData.compactMap { row in
-                Double(row.values[column.name] ?? "")
-            }, minValue: range.min, maxValue: range.max)
+                MiniHistogramView(values: viewModel.csvData.compactMap { row in
+                    Double(row.values[column.name] ?? "")
+                }, minValue: range.min, maxValue: range.max)
                 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(String(format: "%.1f - %.1f", range.min, range.max))
